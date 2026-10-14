@@ -1,0 +1,4 @@
+window.COUESNON_SUPABASE_CONFIG = {
+    SUPABASE_URL: 'https://gfcledsbuuhclrxfnksq.supabase.co',
+    SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdmY2xlZHNidXVoY2xyeGZua3NxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMzk4NTYsImV4cCI6MjA5NTkxNTg1Nn0.JR6yTn-cRo9ekLc5ymHJxv-6wPL9cMZYEgrU5xJ8G94'
+};

@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="fr" class="auth-pending">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Ruche de Couesnon</title>
+    <style>
+        html.auth-pending body {
+            visibility: hidden;
+        }
+    </style>
+    <script>
+        (function () {
+            const SESSION_STORAGE_KEY = 'couesnon_session';
+            const LOGIN_PAGE = 'login.html';
+
+            function redirectToLogin() {
+                window.location.replace(LOGIN_PAGE);
+            }
+
+            function isValidSession(session) {
+                return Boolean(
+                    session &&
+                    typeof session.id === 'string' &&
+                    typeof session.email === 'string' &&
+                    typeof session.displayName === 'string' &&
+                    typeof session.role === 'string'
+                );
+            }
+
+            try {
+                const rawSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
+
+                if (!rawSession) {
+                    redirectToLogin();
+                    return;
+                }
+
+                const session = JSON.parse(rawSession);
+
+                if (!isValidSession(session)) {
+                    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+                    redirectToLogin();
+                    return;
+                }
+
+                window.__COUESNON_PREAUTH_SESSION__ = session;
+            } catch {
+                sessionStorage.removeItem(SESSION_STORAGE_KEY);
+                redirectToLogin();
+            }
+        })();
+    </script>
+    <script src="js/auth.js"></script>
+    <script>
+        (function () {
+            const session = AUTH.requireAuth();
+            window.__COUESNON_AUTH_SESSION__ = session;
+            window.__COUESNON_AUTHENTICATED__ = Boolean(session);
+
+            if (session) {
+                document.documentElement.classList.remove('auth-pending');
+            }
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap"
+          rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="dashboard">
+
+    <button class="mobile-menu-btn" id="mobile-menu-btn" type="button">
+        ☰
+    </button>
+
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    <!-- ── Sidebar ── -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-icon">
+                <svg viewBox="0 0 40 40" fill="none">
+                    <ellipse cx="20" cy="22" rx="10" ry="13" fill="#F5A623" stroke="#C47C0A" stroke-width="1.5"/>
+                    <rect x="13" y="16" width="14" height="3.5" rx="1.75" fill="#5C3A00" opacity="0.35"/>
+                    <rect x="13" y="21" width="14" height="3.5" rx="1.75" fill="#5C3A00" opacity="0.35"/>
+                    <rect x="13" y="26" width="14" height="3.5" rx="1.75" fill="#5C3A00" opacity="0.35"/>
+                    <ellipse cx="20" cy="12" rx="5" ry="4" fill="#FDE68A" stroke="#C47C0A" stroke-width="1.2"/>
+                    <path d="M15 10 Q10 4 7 7" stroke="#C47C0A" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+                    <path d="M25 10 Q30 4 33 7" stroke="#C47C0A" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+                    <ellipse cx="13" cy="9" rx="5" ry="3" fill="white" fill-opacity="0.55"
+                             transform="rotate(-25 13 9)"/>
+                    <ellipse cx="27" cy="9" rx="5" ry="3" fill="white" fill-opacity="0.55" transform="rotate(25 27 9)"/>
+                </svg>
+            </div>
+            <div>
+                <div class="logo-title">Couesnon</div>
+                <div class="logo-sub">Apiculture</div>
+            </div>
+        </div>
+
+        <div class="sidebar-section-label">Type</div>
+        <div class="type-toggle">
+            <label class="type-item">
+                <input type="radio" name="drone" value="ruche" checked/>
+                <span>
+                    <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="5" width="14" height="3" rx="1"
+                                                               fill="currentColor"/><rect x="2" y="7" width="12"
+                                                                                          height="7" rx="1.2"
+                                                                                          fill="currentColor"
+                                                                                          opacity="0.2"/><path
+                            d="M5.5 5V3.5a2.5 2.5 0 015 0V5" stroke="currentColor" stroke-width="1.2"
+                            stroke-linecap="round"/></svg>
+                    Ruche
+                </span>
+            </label>
+        </div>
+
+        <div class="sidebar-section-label" style="margin-top:1.5rem;">Ruches</div>
+        <nav class="sidebar-nav" id="sidebar-nav"></nav>
+
+        <button class="btn-add-ruche" id="btn-add-ruche">
+            <svg viewBox="0 0 16 16" fill="none">
+                <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+            Ajouter une ruche
+        </button>
+
+        <div class="sidebar-footer">
+            <div class="status-pill">
+                <span class="status-dot"></span>
+                <span>En ligne</span>
+            </div>
+            <div class="footer-date" id="footer-date"></div>
+            <div style="font-size:0.68rem;color:rgba(245,166,35,0.4);display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:4px;">
+                <span id="session-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+                <button id="btn-logout" title="Se déconnecter"
+                        style="border:none;background:none;cursor:pointer;color:rgba(245,166,35,0.35);padding:2px 6px;border-radius:5px;font-size:0.72rem;transition:color 0.15s;flex-shrink:0;">
+                    ⎋ Déconnexion
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ── Main content ── -->
+    <div class="content" id="main-view">
+
+        <!-- Topbar -->
+        <header class="topbar">
+            <div class="topbar-title">
+                <h1 id="topbar-name">Sélectionnez une ruche</h1>
+                <span class="topbar-badge" id="topbar-badge" style="display:none;"></span>
+            </div>
+
+            <!-- Actions -->
+            <div class="actions-row">
+                <button class="btn btn-ghost" id="btn-graph" type="button">
+                    📈 Graphique d'évolution
+                </button>
+                <button class="btn btn-ghost" id="btn-gestion" type="button">
+                    📋 Gestion
+                </button>
+            </div>
+            <button class="mobile-actions-btn" id="mobile-actions-btn" type="button" aria-label="Ouvrir les actions">⋮
+            </button>
+            <div class="topbar-coords" id="topbar-coords" style="display:none;">
+                <svg viewBox="0 0 16 16" fill="none">
+                    <path d="M8 1.5C5.51 1.5 3.5 3.51 3.5 6c0 3.75 4.5 8.5 4.5 8.5S12.5 9.75 12.5 6c0-2.49-2.01-4.5-4.5-4.5zm0 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"
+                          fill="currentColor"/>
+                </svg>
+                <span id="topbar-coords-text"></span>
+            </div>
+        </header>
+
+        <!-- Metric cards -->
+        <div class="metrics-row" id="metrics-row">
+            <div class="metric-card metric-card--hero">
+                <div class="mc-label">Dernière réception</div>
+                <div class="mc-value" id="last-reception">—</div>
+            </div>
+            <div class="metric-card">
+                <div class="mc-label">Dernière mesure</div>
+                <div class="mc-value" id="last-measure">—</div>
+            </div>
+            <div class="metric-card">
+                <div class="mc-label">Variation</div>
+                <div class="mc-value" id="variation">—</div>
+            </div>
+        </div>
+
+        <!-- Two-column lower grid -->
+        <div class="lower-grid">
+
+            <!-- Historique -->
+            <div class="panel" id="history-section" style="display:none;">
+                <div class="panel-header">
+                    <span class="panel-title">Historique</span>
+                    <div style="display:flex;align-items:center;gap:.5rem;">
+                        <button class="btn-history" id="btn-history-full">
+                            Voir tout
+                        </button>
+                        <span class="panel-count" id="history-count">0</span>
+                    </div>
+                </div>
+                <ul class="history-list" id="history-list"></ul>
+            </div>
+
+            <!-- Carte GPS -->
+            <div class="panel map-panel map-open" id="map-card" style="display:none;">
+                <div class="panel-header map-toggle" id="map-toggle">
+                    <span class="panel-title">📍 Position GPS</span>
+                    <div id="distance-user-ruche" class="distance-info">
+                        Distance : —
+                    </div>
+                    <div class="map-actions">
+                        <button id="btn-user-position" class="btn-locate" type="button">📍 Moi</button>
+                        <span class="map-toggle-icon">▾</span>
+                    </div>
+                </div>
+                <div id="ruche-map"></div>
+            </div>
+
+        </div>
+
+        <!-- Countdown -->
+        <div class="countdown-bar">
+            <div class="cd-left">
+                <span class="cd-bar-label">Prochaine MAJ</span>
+                <div class="cd-units">
+                    <div class="cd-unit cd-unit--accent">
+                        <span id="hours">00</span><em>H</em>
+                    </div>
+                    <div class="cd-unit">
+                        <span id="minutes">00</span><em>M</em>
+                    </div>
+                    <div class="cd-unit">
+                        <span id="seconds">00</span><em>S</em>
+                    </div>
+                </div>
+            </div>
+            <div class="cd-center">
+                <div class="cd-bar-bg">
+                    <div class="cd-bar-fill" id="cd-bar-fill"></div>
+                </div>
+                <div class="cd-bar-times">
+                    <span id="cd-last">—</span>
+                    <span class="cd-cycles">00h · 06h · 12h · 18h</span>
+                    <span id="cd-next">—</span>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- fin .content#main-view -->
+
+    <!-- ── Graph view ── -->
+    <div class="content" id="graph-view" style="display:none;">
+        <header class="topbar">
+            <div class="topbar-title">
+                <h1 id="graph-title">Graphique — Ruche</h1>
+            </div>
+            <button class="btn btn-ghost" id="btn-back">
+                ⬅ Retour
+            </button>
+        </header>
+        <div style="padding: 2rem; flex:1;">
+            <canvas id="graphCanvas"></canvas>
+        </div>
+    </div>
+
+    <div class="content" id="history-view" style="display:none;">
+        <header class="topbar">
+            <div class="topbar-title">
+                <h1 id="history-title">Historique — Ruche</h1>
+            </div>
+
+            <button class="btn btn-ghost" id="btn-back-history">
+                ⬅ Retour
+            </button>
+        </header>
+
+        <div style="padding:2rem; flex:1;">
+            <div id="history-full-page"></div>
+        </div>
+    </div>
+
+    <div class="content" id="gestion-view" style="display:none;">
+
+        <header class="topbar">
+            <div class="topbar-title">
+                <h1>Gestion Administrateur</h1>
+                <span class="topbar-badge">Administration</span>
+            </div>
+
+            <div class="actions-row">
+                <button class="btn btn-primary" id="btn-add-user">
+                    ➕ Ajouter un utilisateur
+                </button>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;">
+                <button class="btn btn-ghost" id="btn-back-gestion">
+                    ⬅ Retour
+                </button>
+            </div>
+        </header>
+
+        <div class="gestion-layout">
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Utilisateurs</span>
+                    <span class="panel-count" id="users-count">0</span>
+                </div>
+
+                <div class="users-list" id="users-list" aria-live="polite">
+                    <div class="user-empty">Chargement des utilisateurs...</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+
+</div>
+
+</div><!-- fin .dashboard -->
+
+<!-- ── Modale ajout ruche ── -->
+<div class="modal-overlay" id="modal-overlay" style="display:none;">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">Nouvelle ruche</span>
+            <button class="modal-close" id="modal-close" type="button" aria-label="Fermer la fenêtre d'ajout de ruche">
+                &times;
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-field">
+                <label for="input-nom">Numéro / Nom</label>
+                <input type="text" id="input-nom" placeholder="ex: 4, Alpha, Sud…" maxlength="20"/>
+            </div>
+            <div class="modal-field">
+                <label for="input-device-id">TTN device_id</label>
+                <input type="text" id="input-device-id" placeholder="Identifiant exact dans TTN et Supabase"
+                       maxlength="80" autocomplete="off"/>
+            </div>
+            <div class="modal-field">
+                <label for="input-lat">Latitude</label>
+                <input type="number" id="input-lat" placeholder="Latitude GPS" step="0.00001"/>
+            </div>
+            <div class="modal-field">
+                <label for="input-lng">Longitude</label>
+                <input type="number" id="input-lng" placeholder="Longitude GPS" step="0.00001"/>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="modal-cancel">Annuler</button>
+            <button class="btn btn-primary" id="modal-confirm">Ajouter</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="user-modal-overlay" style="display:none;">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="user-modal-title">
+        <div class="modal-header">
+            <span class="modal-title" id="user-modal-title">Utilisateur</span>
+            <button class="modal-close" id="user-modal-close" type="button" aria-label="Fermer la fenêtre utilisateur">
+                &times;
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-field" id="user-email-field">
+                <label for="user-email">Email</label>
+                <input type="email" id="user-email" autocomplete="email"/>
+            </div>
+            <div class="modal-field" id="user-password-field">
+                <label for="user-password">Mot de passe</label>
+                <input type="password" id="user-password" autocomplete="new-password" minlength="6"/>
+            </div>
+            <div class="modal-field">
+                <label for="user-display-name">Nom affiche</label>
+                <input type="text" id="user-display-name" maxlength="80"/>
+            </div>
+            <div class="modal-field">
+                <label for="user-role">Role</label>
+                <select id="user-role">
+                    <option value="user">Apiculteur</option>
+                    <option value="admin">Administrateur</option>
+                    <option value="dev">Developpeur</option>
+                </select>
+            </div>
+            <label class="modal-check" id="user-active-field">
+                <input type="checkbox" id="user-active"/>
+                <span>Compte actif</span>
+            </label>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" id="user-modal-cancel" type="button">Annuler</button>
+            <button class="btn btn-primary" id="user-modal-save" type="button">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<nav class="bottom-nav" id="bottom-nav" aria-label="Navigation mobile">
+    <button class="bottom-nav-item active" id="nav-home" type="button">🏠<span>Accueil</span></button>
+    <button class="bottom-nav-item" id="nav-graph" type="button">📈<span>Graph</span></button>
+    <button class="bottom-nav-item" id="nav-history" type="button">📜<span>Historique</span></button>
+    <button class="bottom-nav-item" id="nav-gestion" type="button">⚙️<span>Gestion</span></button>
+</nav>
+
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script>
+    // ── Vérification session ──────────────────────────────
+    const _session = window.__COUESNON_AUTH_SESSION__ || AUTH.requireAuth();
+    window.__COUESNON_AUTHENTICATED__ = Boolean(_session);
+
+    if (_session) {
+        document.documentElement.classList.remove('auth-pending');
+
+        const nameEl = document.getElementById('session-name');
+
+        if (nameEl) {
+            const roleLabels = {
+                admin: '👑',
+                dev: '⚙️',
+                user: '🐝'
+            };
+
+            nameEl.textContent =
+                (roleLabels[_session.role] || '') +
+                ' ' +
+                _session.displayName;
+        }
+    }
+
+    // Déconnexion
+    document.getElementById('btn-logout').addEventListener('click', () => {
+        AUTH.logout();
+    });
+
+    // ── Permissions ──────────────────────────────
+    const canManage = _session && ["admin", "dev"].includes(_session.role);
+
+    if (!canManage) {
+        // Apiculteur : masquer toutes les actions de gestion
+        document.getElementById("btn-add-ruche").style.display = "none";
+        document.getElementById("btn-gestion").style.display = "none";
+        document.getElementById("nav-gestion").style.display = "none";
+        document.querySelectorAll(".nav-actions").forEach(el => {
+            el.style.display = "none";
+        });
+    }
+
+</script>
+<script src="app-config.js"></script>
+<script>
+    if (window.__COUESNON_AUTHENTICATED__) {
+        const appScript = document.createElement('script');
+        appScript.src = 'js/app.js';
+        appScript.async = false;
+        document.currentScript.after(appScript);
+    }
+</script>
+
+<div class="modal-overlay"
+     id="history-modal"
+     style="display:none;">
+
+    <div class="modal history-modal">
+
+        <div class="modal-header">
+            <span class="modal-title">
+                Historique complet
+            </span>
+
+            <button
+                    class="modal-close"
+                    id="history-close"
+                    type="button"
+                    aria-label="Fermer l'historique complet">
+                &times;
+            </button>
+        </div>
+
+        <div class="history-full-body"
+             id="history-full-body">
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>
