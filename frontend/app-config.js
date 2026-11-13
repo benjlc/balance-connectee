@@ -4,4 +4,4 @@ const isLocal =
 
 window.COUESNON_API_BASE_URL = isLocal
   ? "http://localhost:3000"
-  : "https://balance-connectee.onrender.com";
+  : "https://balance-connectee-l0b9.onrender.com";
