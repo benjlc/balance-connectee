@@ -105,7 +105,6 @@ supabase
 
 
     console.log("[SUPABASE] connected");
-  });
 
 const MQTT_TOPIC = `v3/${APP_ID}@${TENANT}/devices/+/up`;
 
