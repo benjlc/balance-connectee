@@ -83,11 +83,26 @@ console.log("[SUPABASE] config loaded:", SUPABASE_URL);
 supabase
   .from("locations")
   .select("id", { head: true, count: "exact" })
-  .then(({ error }) => {
+  .then(({ data, error, status, statusText }) => {
     if (error) {
-      console.error("[SUPABASE] connection check error:", formatSupabaseError(error));
+      console.error("[SUPABASE] connection check error:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        status,
+        statusText,
+        name: error.name
+      });
       return;
     }
+
+    console.log("[SUPABASE] connected", { status, statusText });
+  })
+  .catch((err) => {
+    console.error("[SUPABASE] connection check exception:", err);
+  });
+
 
     console.log("[SUPABASE] connected");
   });
