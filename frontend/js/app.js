@@ -516,6 +516,13 @@ function trimHistoryForKey(key) {
     }
 }
 
+function sortHistory(key) {
+    const entries = history[key];
+    if (!entries) return;
+    entries.sort((a, b) => a._timestamp - b._timestamp);
+    entries.forEach((e, i) => { e.prev = i > 0 ? entries[i - 1].poids : null; });
+}
+
 function updateSelectedRucheMap(key) {
     const ruche = RUCHES_DATA[key];
     if (!ruche) return;
@@ -847,10 +854,12 @@ function measurementToHistoryEntry(measurement, previousEntry) {
 }
 
 function getMeasurementIdentity(entryOrMeasurement) {
-    return entryOrMeasurement?._receivedAt
+    const raw = entryOrMeasurement?._receivedAt
         || entryOrMeasurement?.received_at
         || entryOrMeasurement?.created_at
         || null;
+    const ms = raw ? Date.parse(raw) : NaN;
+    return Number.isNaN(ms) ? raw : ms;
 }
 
 function mergeMeasurementsIntoHistory(key, measurements) {
@@ -874,6 +883,7 @@ function mergeMeasurementsIntoHistory(key, measurements) {
 
     if (!changed) return false;
 
+    sortHistory(key);
     trimHistoryForKey(key);
 
     const latestMeasurement = measurements[measurements.length - 1] || null;
@@ -1225,7 +1235,8 @@ function onTrameReceived(buffer, receivedAt, deviceId) {
     if (!history[key]) history[key] = [];
 
     const last = history[key][history[key].length - 1];
-    if (last && receivedAt && last._receivedAt === receivedAt) return;
+    const incomingId = receivedAt ? Date.parse(receivedAt) : null;
+    if (incomingId && history[key].some(e => getMeasurementIdentity(e) === incomingId)) return;
 
     history[key].push({
         poids: data.poids,
@@ -1237,6 +1248,7 @@ function onTrameReceived(buffer, receivedAt, deviceId) {
         _timestamp: receivedAt ? new Date(receivedAt) : new Date(),
         _receivedAt: receivedAt || null
     });
+    sortHistory(key);
     trimHistoryForKey(key);
 
     if (activeKey === key) {
