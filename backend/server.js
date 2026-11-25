@@ -335,6 +335,70 @@ app.post("/api/ttn/uplink", async (req, res) => {
   }
 });
 
+const TTN_API_BASE = (process.env.TTN_API_BASE || "https://eu1.cloud.thethings.network").replace(/\/+$/, "");
+const TTN_APP_ID = process.env.TTN_APP_ID || "application-ruche-enib";
+
+async function catchUpFromTtn(hours = 24) {
+  if (!API_KEY) {
+    console.warn("[CATCHUP] TTN_API_KEY missing, skipped");
+    return { fetched: 0, saved: 0, duplicates: 0, errors: 0 };
+  }
+
+  const after = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+  const url = `${TTN_API_BASE}/api/v3/as/applications/${encodeURIComponent(TTN_APP_ID)}`
+    + `/packages/storage/uplink_message?after=${encodeURIComponent(after)}&limit=200`;
+
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${API_KEY}`, Accept: "text/event-stream" },
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!response.ok) throw new Error(`storage API returned ${response.status}`);
+
+  // Une ligne JSON par message (avec ou sans préfixe "data:")
+  const items = [];
+  for (const rawLine of (await response.text()).split("\n")) {
+    const line = rawLine.replace(/^data:\s*/, "").trim();
+    if (!line.startsWith("{")) continue;
+    try {
+      const parsed = JSON.parse(line);
+      items.push(parsed.result || parsed);
+    } catch {
+      // ligne incomplète : ignorée
+    }
+  }
+
+  items.sort((a, b) => new Date(a.received_at) - new Date(b.received_at));
+
+  let saved = 0, duplicates = 0, errors = 0;
+  for (const item of items) {
+    try {
+      const result = await processTtnUplink(item, "CATCHUP");
+      if (result.saved) saved++;
+      else if (result.duplicate) duplicates++;
+    } catch (err) {
+      errors++;
+      console.error("[CATCHUP] item error:", err.message);
+    }
+  }
+
+  console.log(`[CATCHUP] ${items.length} fetched, ${saved} saved, ${duplicates} duplicates, ${errors} errors`);
+  return { fetched: items.length, saved, duplicates, errors };
+}
+
+// Déclenchement manuel, protégé par le même secret que le webhook
+app.post("/api/ttn/catchup", async (req, res) => {
+  const expectedSecret = TTN_WEBHOOK_SECRET && TTN_WEBHOOK_SECRET.trim();
+  if (!expectedSecret || req.get("x-ttn-secret") !== expectedSecret) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  try {
+    res.json(await catchUpFromTtn(Number(req.query.hours) || 24));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/admin/users", requireAdmin, async (req, res) => {
   try {
     const [{ data: profiles, error: profilesError }, { data: authData, error: authError }] =
@@ -1047,6 +1111,7 @@ if (ENABLE_MQTT) {
 }
 
 app.listen(HTTP_PORT, () => {
+  catchUpFromTtn().catch(err => console.error("[CATCHUP] error:", err.message));
   console.log(`[WEB] open http://localhost:${HTTP_PORT}`);
 });
 
